@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>JS X MAIL Bot</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--tg-theme-bg-color, #1a1a2e);
+    color: var(--tg-theme-text-color, #ffffff);
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 30px;
+  }
+  .logo { font-size: 48px; margin-bottom: 6px; animation: bounce 1.5s infinite alternate; }
+  @keyframes bounce { from{transform:translateY(0)} to{transform:translateY(-8px)} }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; color: #e0e0ff; }
+  .subtitle { font-size: 13px; color: #aaaacc; margin-bottom: 16px; }
+
+  /* Status */
+  .status {
+    width: 100%; max-width: 420px;
+    padding: 10px 14px; border-radius: 12px;
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 14px; display: none; align-items: center; gap: 8px;
+  }
+  .status.active { display: flex; }
+  .status.ok  { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #fff; }
+  .status.ok .email-text { color: #ffd700; font-weight: 800; }
+  .status.err { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5); color: #ffaaaa; }
+
+  /* Panel */
+  .panel {
+    width: 100%; max-width: 420px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px; padding: 16px;
+    margin-bottom: 16px; display: none;
+  }
+  .panel.active { display: block; }
+  .format-hint { font-size: 11px; color: #9999bb; margin-bottom: 10px; line-height: 1.6; }
+  .format-hint code {
+    color: #4facfe; background: rgba(79,172,254,0.12);
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 11px; word-break: break-all; display: block; margin-top: 4px;
+  }
+  textarea {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff; font-size: 12px; font-family: monospace;
+    outline: none; resize: none; height: 80px; line-height: 1.5;
+  }
+  textarea:focus { border-color: #4facfe; background: rgba(79,172,254,0.1); }
+  textarea::placeholder { color: #555577; font-size: 11px; }
+
+  /* Preview */
+  .preview { margin-top: 10px; display: none; }
+  .preview.active { display: block; }
+  .prow {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px;
+  }
+  .prow:last-child { border: none; }
+  .pkey { color: #aaaacc; }
+  .pval { color: #7fffb0; font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .btn-save {
+    width: 100%; margin-top: 12px; padding: 12px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #22c55e, #15803d);
+    color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .btn-save:active { filter: brightness(0.85); }
+
+  /* Buttons */
+  .btn-grid {
+    width: 100%; max-width: 420px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .btn-grid .btn-full { grid-column: 1 / -1; }
+  .btn {
+    padding: 16px 10px; border: none; border-radius: 14px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: transform 0.15s, filter 0.15s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  }
+  .btn:active { transform: scale(0.95); filter: brightness(0.9); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-blue  { background: linear-gradient(135deg, #1e90ff, #0055cc); color: #fff; }
+  .btn-green { background: linear-gradient(135deg, #22c55e, #15803d); color: #fff; }
+  .btn-red   { background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; }
+
+  /* Result */
+  .result-box {
+    width: 100%; max-width: 420px;
+    border-radius: 14px; padding: 14px 16px;
+    margin-top: 16px; display: none; font-size: 14px; line-height: 2;
+  }
+  .result-box.active { display: block; }
+  .result-box.success { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.4); }
+  .result-box.error   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.4); }
+  .rlabel { font-size: 11px; color: #aaaacc; }
+  .rvalue { font-weight: 700; color: #fff; word-break: break-all; font-size: 14px; }
+  .code-big {
+    font-size: 32px; font-weight: 900; color: #ffd700;
+    letter-spacing: 6px; display: block; text-align: center;
+    margin: 10px 0; text-shadow: 0 0 20px rgba(255,215,0,0.6);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #333355; color: #fff;
+    padding: 10px 22px; border-radius: 30px;
+    font-size: 14px; transition: transform 0.3s; z-index: 999; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="logo">📧</div>
+<h1>JS X MAIL Bot</h1>
+<p class="subtitle">OTP / Code Fetcher</p>
+
+<div class="status" id="statusBadge"></div>
+
+<div class="panel" id="mailPanel">
+  <div class="format-hint">
+    নিচের ফরম্যাটে paste করুন:
+    <code>email|password|refresh_token|client_id</code>
+  </div>
+  <textarea id="inputRaw"
+    placeholder="emerson@hotmail.com|Pass123|M.C502_BAY...|9e5f94bc-..."
+    oninput="parseInput()"
+    autocomplete="off" autocorrect="off" spellcheck="false"
+  ></textarea>
+  <div class="preview" id="preview">
+    <div class="prow"><span class="pkey">📧 Email</span><span class="pval" id="pvEmail">—</span></div>
+    <div class="prow"><span class="pkey">🔑 Password</span><span class="pval" id="pvPass">—</span></div>
+    <div class="prow"><span class="pkey">🔄 Token</span><span class="pval" id="pvToken">—</span></div>
+    <div class="prow"><span class="pkey">🆔 Client ID</span><span class="pval" id="pvClient">—</span></div>
+  </div>
+  <button class="btn-save" onclick="saveMailData()">✅ সেভ করুন</button>
+</div>
+
+<div class="btn-grid">
+  <button class="btn btn-blue" onclick="togglePanel()">
+    <span>📧</span> Mail Set
+  </button>
+  <button class="btn btn-red" onclick="handleMailClear()">
+    <span>🗑</span> Mail Clear
+  </button>
+  <button class="btn btn-green btn-full" onclick="handleGetCode()" id="getCodeBtn">
+    <div class="spinner" id="spinner"></div>
+    <span id="getCodeText">🔢 Get Code</span>
+  </button>
+</div>
+
+<div class="result-box" id="resultBox"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
+
+  // ── Config ──
+  const BOT_TOKEN = "8611107651:AAHCDAs4_cF8P1CWmhF80k6vz6PvJI0-JBM";
+  const CHAT_ID   = "8225531202";
+  const API_URL   = "https://tools.dongvanfb.net/api/get_code_oauth2";
+  const TG_API    = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+  let savedData = JSON.parse(localStorage.getItem('mailData') || 'null');
+  let panelOpen = false;
+
+  updateStatus();
+  if (savedData) {
+    document.getElementById('inputRaw').value =
+      [savedData.email, savedData.pass, savedData.token, savedData.client].join('|');
+    parseInput();
+  }
+
+  // ── Bot কে message পাঠাও ──
+  async function sendToBot(text) {
+    try {
+      await fetch(`${TG_API}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text: text,
+          parse_mode: 'Markdown'
+        })
+      });
+    } catch(e) { console.log('Bot message error:', e); }
+  }
+
+  function showToast(msg, ms = 2500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), ms);
+  }
+
+  function updateStatus() {
+    const s = document.getElementById('statusBadge');
+    if (savedData) {
+      s.className = 'status ok active';
+      s.innerHTML = `✅ সেভ করা আছে: <span class="email-text">${savedData.email}</span>`;
+    } else {
+      s.className = 'status err active';
+      s.innerHTML = '⚠️ কোনো Mail Set করা নেই';
+    }
+  }
+
+  function togglePanel() {
+    panelOpen = !panelOpen;
+    document.getElementById('mailPanel').classList.toggle('active', panelOpen);
+  }
+
+  function parseInput() {
+    const raw   = document.getElementById('inputRaw').value.trim();
+    const parts = raw.split('|');
+    const prev  = document.getElementById('preview');
+    if (parts.length >= 2) {
+      prev.classList.add('active');
+      document.getElementById('pvEmail').textContent  = parts[0] || '—';
+      document.getElementById('pvPass').textContent   = parts[1] ? '••••••' : '—';
+      document.getElementById('pvToken').textContent  = parts[2] ? parts[2].slice(0,20)+'…' : '—';
+      document.getElementById('pvClient').textContent = parts[3] || '—';
+    } else {
+      prev.classList.remove('active');
+    }
+  }
+
+  // ── Mail Set ──
+  async function saveMailData() {
+    const raw   = document.getElementById('inputRaw').value.trim();
+    const parts = raw.split('|');
+    if (parts.length !== 4 || parts.some(p => !p.trim())) {
+      showToast('❌ সঠিক ফরম্যাট: email|pass|token|client_id');
+      return;
+    }
+    const [email, pass, token, client] = parts.map(p => p.trim());
+    savedData = { email, pass, token, client };
+    localStorage.setItem('mailData', JSON.stringify(savedData));
+    panelOpen = false;
+    document.getElementById('mailPanel').classList.remove('active');
+    updateStatus();
+    showToast('✅ তথ্য সেভ হয়েছে!');
+
+    // Bot এ জানাও
+    await sendToBot(
+      `✅ *Mail Set সফল!*\n\n📧 Email: \`${email}\`\n\n🔢 Get Code বাটন চাপুন।`
+    );
+  }
+
+  // ── Mail Clear ──
+  async function handleMailClear() {
+    localStorage.removeItem('mailData');
+    savedData = null;
+    document.getElementById('inputRaw').value = '';
+    document.getElementById('preview').classList.remove('active');
+    document.getElementById('resultBox').className = 'result-box';
+    panelOpen = false;
+    document.getElementById('mailPanel').classList.remove('active');
+    updateStatus();
+    showToast('🗑 তথ্য মুছে ফেলা হয়েছে');
+
+    // Bot এ জানাও
+    await sendToBot('🗑 *Mail Clear করা হয়েছে।*\n\nনতুন mail set করতে Mail Set বাটন চাপুন।');
+  }
+
+  // ── Get Code ──
+  async function handleGetCode() {
+    if (!savedData) {
+      showToast('❌ আগে Mail Set করুন');
+      return;
+    }
+
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('getCodeText').textContent = 'লোড হচ্ছে...';
+    document.getElementById('getCodeBtn').disabled = true;
+
+    try {
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:         savedData.email,
+          refresh_token: savedData.token,
+          client_id:     savedData.client,
+          type:          'all'
+        })
+      });
+
+      const data = await resp.json();
+      const box  = document.getElementById('resultBox');
+
+      if (data.status) {
+        const code    = data.code    || 'N/A';
+        const content = data.content || '—';
+        const date    = data.date    || '—';
+
+        // HTML এ দেখাও
+        box.className = 'result-box success active';
+        box.innerHTML = `
+          <div class="rlabel">📧 Email</div>
+          <div class="rvalue">${savedData.email}</div>
+          <div class="rlabel" style="margin-top:8px">🔢 Code</div>
+          <span class="code-big">${code}</span>
+          <div class="rlabel">📝 Content</div>
+          <div class="rvalue" style="font-size:12px">${content}</div>
+          <div class="rlabel">📅 Date</div>
+          <div class="rvalue" style="font-size:12px">${date}</div>
+        `;
+        showToast('✅ Code পাওয়া গেছে!');
+
+        // Bot এও পাঠাও
+        await sendToBot(
+          `✅ *Code পাওয়া গেছে!*\n\n` +
+          `📧 Email   : \`${savedData.email}\`\n` +
+          `🔢 Code    : \`${code}\`\n` +
+          `📝 Content : ${content}\n` +
+          `📅 Date    : ${date}`
+        );
+
+      } else {
+        const err = data.error || data.msg || 'অজানা ত্রুটি';
+        box.className = 'result-box error active';
+        box.innerHTML = `
+          <div style="color:#ff8080;font-weight:700;margin-bottom:6px">❌ Code আনা যায়নি</div>
+          <div class="rlabel">Error</div>
+          <div class="rvalue" style="color:#ffaaaa;font-size:12px">${err}</div>
+        `;
+        showToast('❌ ' + err.slice(0,40));
+
+        // Bot এও error পাঠাও
+        await sendToBot(
+          `❌ *Code আনা যায়নি*\n\nError: \`${err}\`\n\nCredentials চেক করুন।`
+        );
+      }
+
+    } catch(err) {
+      const box = document.getElementById('resultBox');
+      box.className = 'result-box error active';
+      box.innerHTML = `
+        <div style="color:#ff8080;font-weight:700">❌ Network Error</div>
+        <div style="font-size:12px;color:#ffaaaa;margin-top:6px">${err.message}</div>
+      `;
+      showToast('❌ Connection error');
+
+      await sendToBot(`❌ *Network Error*\n\n\`${err.message}\``);
+    }
+
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('getCodeText').textContent = '🔢 Get Code';
+    document.getElementById('getCodeBtn').disabled = false;
+  }
+</script>
+</body>
+</html>
